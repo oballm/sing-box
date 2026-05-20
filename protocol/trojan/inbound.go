@@ -4,6 +4,7 @@ import (
 	"context"
 	"net"
 	"os"
+	"sync"
 
 	"github.com/sagernet/sing-box/adapter"
 	"github.com/sagernet/sing-box/adapter/inbound"
@@ -41,14 +42,21 @@ type Inbound struct {
 	fallbackAddrTLSNextProto map[string]M.Socksaddr
 	transport                adapter.V2RayServerTransport
 	references               []string
+
+	userMu       sync.RWMutex
+	userNameMap  map[int]string
+	userIDByName map[string]int
+	nextUserID   int
 }
 
 func NewInbound(ctx context.Context, router adapter.Router, logger log.ContextLogger, tag string, options option.TrojanInboundOptions) (adapter.Inbound, error) {
 	inbound := &Inbound{
-		Adapter: inbound.NewAdapter(C.TypeTrojan, tag),
-		router:  router,
-		logger:  logger,
-		users:   options.Users,
+		Adapter:      inbound.NewAdapter(C.TypeTrojan, tag),
+		router:       router,
+		logger:       logger,
+		users:        options.Users,
+		userNameMap:  make(map[int]string),
+		userIDByName: make(map[string]int),
 	}
 	if options.TLS != nil {
 		tlsConfig, err := tls.NewServerWithOptions(tls.ServerOptions{
@@ -91,11 +99,8 @@ func NewInbound(ctx context.Context, router adapter.Router, logger log.ContextLo
 		fallbackHandler = adapter.NewUpstreamContextHandler(inbound.fallbackConnection, nil)
 	}
 	service := trojan.NewService[int](adapter.NewUpstreamContextHandler(inbound.newConnection, inbound.newPacketConnection), fallbackHandler, logger)
-	err := service.UpdateUsers(common.MapIndexed(options.Users, func(index int, it option.TrojanUser) int {
-		return index
-	}), common.Map(options.Users, func(it option.TrojanUser) string {
-		return it.Password
-	}))
+	userList, passwordList := inbound.assignUserIDs(options.Users)
+	err := service.UpdateUsers(userList, passwordList)
 	if err != nil {
 		return nil, err
 	}
@@ -188,14 +193,16 @@ func (h *Inbound) NewConnection(ctx context.Context, conn net.Conn, metadata ada
 func (h *Inbound) newConnection(ctx context.Context, conn net.Conn, metadata adapter.InboundContext, onClose N.CloseHandlerFunc) {
 	metadata.Inbound = h.Tag()
 	metadata.InboundType = h.Type()
-	userIndex, loaded := auth.UserFromContext[int](ctx)
+	userID, loaded := auth.UserFromContext[int](ctx)
 	if !loaded {
 		N.CloseOnHandshakeFailure(conn, onClose, os.ErrInvalid)
 		return
 	}
-	user := h.users[userIndex].Name
+	h.userMu.RLock()
+	user := h.userNameMap[userID]
+	h.userMu.RUnlock()
 	if user == "" {
-		user = F.ToString(userIndex)
+		user = F.ToString(userID)
 	} else {
 		metadata.User = user
 	}
@@ -206,14 +213,16 @@ func (h *Inbound) newConnection(ctx context.Context, conn net.Conn, metadata ada
 func (h *Inbound) newPacketConnection(ctx context.Context, conn N.PacketConn, metadata adapter.InboundContext, onClose N.CloseHandlerFunc) {
 	metadata.Inbound = h.Tag()
 	metadata.InboundType = h.Type()
-	userIndex, loaded := auth.UserFromContext[int](ctx)
+	userID, loaded := auth.UserFromContext[int](ctx)
 	if !loaded {
 		N.CloseOnHandshakeFailure(conn, onClose, os.ErrInvalid)
 		return
 	}
-	user := h.users[userIndex].Name
+	h.userMu.RLock()
+	user := h.userNameMap[userID]
+	h.userMu.RUnlock()
 	if user == "" {
-		user = F.ToString(userIndex)
+		user = F.ToString(userID)
 	} else {
 		metadata.User = user
 	}
