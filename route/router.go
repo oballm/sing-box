@@ -299,9 +299,17 @@ func (r *Router) UpdateRules(rules []option.Rule, ruleSets []option.RuleSet) err
 			cacheContext.Close()
 		}
 
+		// Install newRuleSetMap before rule.Start so RuleSetItem.Start()
+		// resolves tags against the new rule_sets. Otherwise new rules bind
+		// to old RuleSet pointers that get Close()'d below, leaving Match()
+		// iterating a nil rules slice forever.
+		oldRuleSetMap := r.ruleSetMap
+		r.ruleSetMap = newRuleSetMap
+
 		for i, rule := range newRules {
 			err := rule.Start()
 			if err != nil {
+				r.ruleSetMap = oldRuleSetMap
 				return E.Cause(err, "initialize rule[", i, "]")
 			}
 		}
@@ -317,7 +325,6 @@ func (r *Router) UpdateRules(rules []option.Rule, ruleSets []option.RuleSet) err
 
 		r.rules = newRules
 		r.ruleSets = newRuleSets
-		r.ruleSetMap = newRuleSetMap
 
 		r.network.Initialize(r.ruleSets)
 
