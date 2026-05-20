@@ -4,6 +4,7 @@ import (
 	"context"
 	"net"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/sagernet/sing-box/adapter"
@@ -42,14 +43,21 @@ type MultiInbound struct {
 	service  shadowsocks.MultiService[int]
 	users    []option.ShadowsocksUser
 	tracker  adapter.SSMTracker
+
+	userMu       sync.RWMutex
+	userNameMap  map[int]string
+	userIDByName map[string]int
+	nextUserID   int
 }
 
 func newMultiInbound(ctx context.Context, router adapter.Router, logger log.ContextLogger, tag string, options option.ShadowsocksInboundOptions) (*MultiInbound, error) {
 	inbound := &MultiInbound{
-		Adapter: inbound.NewAdapter(C.TypeShadowsocks, tag),
-		ctx:     ctx,
-		router:  uot.NewRouter(router, logger),
-		logger:  logger,
+		Adapter:      inbound.NewAdapter(C.TypeShadowsocks, tag),
+		ctx:          ctx,
+		router:       uot.NewRouter(router, logger),
+		logger:       logger,
+		userNameMap:  make(map[int]string),
+		userIDByName: make(map[string]int),
 	}
 	var err error
 	inbound.router, err = mux.NewRouterWithOptions(inbound.router, logger, common.PtrValueOrDefault(options.Multiplex))
@@ -84,11 +92,14 @@ func newMultiInbound(ctx context.Context, router adapter.Router, logger log.Cont
 		return nil, err
 	}
 	if len(options.Users) > 0 {
-		err = service.UpdateUsersWithPasswords(common.MapIndexed(options.Users, func(index int, user option.ShadowsocksUser) int {
-			return index
-		}), common.Map(options.Users, func(user option.ShadowsocksUser) string {
+		names := common.Map(options.Users, func(user option.ShadowsocksUser) string {
+			return user.Name
+		})
+		passwords := common.Map(options.Users, func(user option.ShadowsocksUser) string {
 			return user.Password
-		}))
+		})
+		userList := inbound.assignUserIDs(names)
+		err = service.UpdateUsersWithPasswords(userList, passwords)
 		if err != nil {
 			return nil, err
 		}
@@ -123,9 +134,10 @@ func (h *MultiInbound) SetTracker(tracker adapter.SSMTracker) {
 }
 
 func (h *MultiInbound) UpdateUsers(users []string, uPSKs []string) error {
-	err := h.service.UpdateUsersWithPasswords(common.MapIndexed(users, func(index int, user string) int {
-		return index
-	}), uPSKs)
+	h.userMu.Lock()
+	defer h.userMu.Unlock()
+	userList := h.assignUserIDs(users)
+	err := h.service.UpdateUsersWithPasswords(userList, uPSKs)
 	if err != nil {
 		return err
 	}
@@ -159,13 +171,15 @@ func (h *MultiInbound) NewPacketEx(buffer *buf.Buffer, source M.Socksaddr) {
 }
 
 func (h *MultiInbound) newConnection(ctx context.Context, conn net.Conn, metadata adapter.InboundContext) error {
-	userIndex, loaded := auth.UserFromContext[int](ctx)
+	userID, loaded := auth.UserFromContext[int](ctx)
 	if !loaded {
 		return os.ErrInvalid
 	}
-	user := h.users[userIndex].Name
+	h.userMu.RLock()
+	user := h.userNameMap[userID]
+	h.userMu.RUnlock()
 	if user == "" {
-		user = F.ToString(userIndex)
+		user = F.ToString(userID)
 	} else {
 		metadata.User = user
 	}
@@ -182,13 +196,15 @@ func (h *MultiInbound) newConnection(ctx context.Context, conn net.Conn, metadat
 }
 
 func (h *MultiInbound) newPacketConnection(ctx context.Context, conn N.PacketConn, metadata adapter.InboundContext) error {
-	userIndex, loaded := auth.UserFromContext[int](ctx)
+	userID, loaded := auth.UserFromContext[int](ctx)
 	if !loaded {
 		return os.ErrInvalid
 	}
-	user := h.users[userIndex].Name
+	h.userMu.RLock()
+	user := h.userNameMap[userID]
+	h.userMu.RUnlock()
 	if user == "" {
-		user = F.ToString(userIndex)
+		user = F.ToString(userID)
 	} else {
 		metadata.User = user
 	}
