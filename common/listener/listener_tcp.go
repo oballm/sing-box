@@ -77,6 +77,7 @@ func (l *Listener) ListenTCP() (net.Listener, error) {
 	if err != nil {
 		return nil, err
 	}
+	tcpListener = newTrackingListener(tcpListener)
 	l.logger.Info("tcp server started at ", tcpListener.Addr())
 	l.tcpListener = tcpListener
 	return tcpListener, err
