@@ -308,20 +308,27 @@ func buildMieruServerConfig(_ context.Context, options option.MieruInboundOption
 	}, userNames, nil
 }
 
-func validateMieruInboundOptions(options option.MieruInboundOptions) error {
-	if options.Transport != "TCP" && options.Transport != "UDP" {
-		return E.New("transport must be TCP or UDP")
-	}
-	if len(options.Users) == 0 {
+func validateMieruUsers(users []option.MieruUser) error {
+	if len(users) == 0 {
 		return E.New("users is empty")
 	}
-	for _, user := range options.Users {
+	for _, user := range users {
 		if user.Name == "" {
 			return E.New("username is empty")
 		}
 		if user.Password == "" {
 			return E.New("password is empty")
 		}
+	}
+	return nil
+}
+
+func validateMieruInboundOptions(options option.MieruInboundOptions) error {
+	if options.Transport != "TCP" && options.Transport != "UDP" {
+		return E.New("transport must be TCP or UDP")
+	}
+	if err := validateMieruUsers(options.Users); err != nil {
+		return err
 	}
 	if options.TrafficPattern != "" {
 		trafficPattern, err := mierutp.Decode(options.TrafficPattern)

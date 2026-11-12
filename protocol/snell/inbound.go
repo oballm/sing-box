@@ -4,6 +4,7 @@ import (
 	"context"
 	"net"
 	"os"
+	"sync"
 
 	"github.com/sagernet/sing-box/adapter"
 	"github.com/sagernet/sing-box/adapter/inbound"
@@ -35,26 +36,31 @@ type Inbound struct {
 	logger   logger.ContextLogger
 	listener *listener.Listener
 	service  snellprotocol.Service
-	users    []option.SnellUser
+
+	// Multi-user mode only (users given at creation).
+	multiService multiUserService
+	userMu       sync.RWMutex
+	userNameMap  map[int]string
+	userIDByName map[string]int
+	nextUserID   int
+}
+
+// multiUserService is implemented by the snellv5 and snellv6 multi-user
+// services.
+type multiUserService interface {
+	snellprotocol.Service
+	UpdateUsers(users []int, userKeys [][]byte) error
 }
 
 func NewInbound(ctx context.Context, router adapter.Router, logger log.ContextLogger, tag string, options option.SnellInboundOptions) (adapter.Inbound, error) {
 	inbound := &Inbound{
-		Adapter: inbound.NewAdapter(C.TypeSnell, tag),
-		router:  uot.NewRouter(router, logger),
-		logger:  logger,
-		users:   options.Users,
+		Adapter:      inbound.NewAdapter(C.TypeSnell, tag),
+		router:       uot.NewRouter(router, logger),
+		logger:       logger,
+		userNameMap:  make(map[int]string),
+		userIDByName: make(map[string]int),
 	}
-	var userList []int
-	var keyList [][]byte
-	if len(options.Users) > 0 {
-		userList = make([]int, len(options.Users))
-		keyList = make([][]byte, len(options.Users))
-		for index, user := range options.Users {
-			userList[index] = index
-			keyList[index] = []byte(user.UserKey)
-		}
-	}
+	userList, keyList := inbound.assignUserIDs(options.Users)
 	var err error
 	switch options.Version {
 	case 5:
@@ -76,6 +82,7 @@ func NewInbound(ctx context.Context, router adapter.Router, logger log.ContextLo
 			}
 			err = service.UpdateUsers(userList, keyList)
 			inbound.service = service
+			inbound.multiService = service
 		} else {
 			inbound.service, err = snellv5.NewService(serviceOptions)
 		}
@@ -98,6 +105,7 @@ func NewInbound(ctx context.Context, router adapter.Router, logger log.ContextLo
 			}
 			err = service.UpdateUsers(userList, keyList)
 			inbound.service = service
+			inbound.multiService = service
 		} else {
 			inbound.service, err = snellv6.NewService(serviceOptions)
 		}
@@ -168,15 +176,17 @@ func (h *Inbound) NewPacketConnectionEx(ctx context.Context, conn N.PacketConn, 
 func (h *Inbound) newConnection(ctx context.Context, conn net.Conn, metadata adapter.InboundContext, onClose N.CloseHandlerFunc) {
 	metadata.Inbound = h.Tag()
 	metadata.InboundType = h.Type()
-	if len(h.users) > 0 {
-		userIndex, loaded := auth.UserFromContext[int](ctx)
+	if h.multiService != nil {
+		userID, loaded := auth.UserFromContext[int](ctx)
 		if !loaded {
 			N.CloseOnHandshakeFailure(conn, onClose, os.ErrInvalid)
 			return
 		}
-		user := h.users[userIndex].Name
+		h.userMu.RLock()
+		user := h.userNameMap[userID]
+		h.userMu.RUnlock()
 		if user == "" {
-			user = F.ToString(userIndex)
+			user = F.ToString(userID)
 		} else {
 			metadata.User = user
 		}
@@ -192,15 +202,17 @@ func (h *Inbound) newPacketConnection(ctx context.Context, conn N.PacketConn, me
 	metadata.InboundType = h.Type()
 	// The snell client in Surge rejects UDP responses with domain addresses.
 	metadata.UDPDisableDomainUnmapping = true
-	if len(h.users) > 0 {
-		userIndex, loaded := auth.UserFromContext[int](ctx)
+	if h.multiService != nil {
+		userID, loaded := auth.UserFromContext[int](ctx)
 		if !loaded {
 			N.CloseOnHandshakeFailure(conn, onClose, os.ErrInvalid)
 			return
 		}
-		user := h.users[userIndex].Name
+		h.userMu.RLock()
+		user := h.userNameMap[userID]
+		h.userMu.RUnlock()
 		if user == "" {
-			user = F.ToString(userIndex)
+			user = F.ToString(userID)
 		} else {
 			metadata.User = user
 		}
