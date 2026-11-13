@@ -200,6 +200,6 @@ require (
 	zombiezen.com/go/capnproto2 v2.18.2+incompatible // indirect
 )
 
-replace github.com/enfein/mieru/v3 => ../mieru
+replace github.com/enfein/mieru/v3 => github.com/oballm/mieru/v3 v3.0.0-20261113010409-83f62db6c429
 
-replace github.com/sagernet/sing-snell => ../sing-snell
+replace github.com/sagernet/sing-snell => github.com/oballm/sing-snell v0.0.0-20261112154352-965a91b90ec8
