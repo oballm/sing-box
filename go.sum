@@ -211,6 +211,10 @@ github.com/mitchellh/go-ps v1.0.0 h1:i6ampVEEF4wQFF+bkYfwYgY+F/uYJDktmvLPf7qIgjc
 github.com/mitchellh/go-ps v1.0.0/go.mod h1:J4lOc8z8yJs6vUwklHw2XEIiT4z4C40KtWVN3nvg8Pg=
 github.com/nfnt/resize v0.0.0-20180221191011-83c6a9932646 h1:zYyBkD/k9seD2A7fsi6Oo2LfFZAehjjQMERAvZLEDnQ=
 github.com/nfnt/resize v0.0.0-20180221191011-83c6a9932646/go.mod h1:jpp1/29i3P1S/RLdc7JQKbRpFeM1dOBd8T9ki5s+AY8=
+github.com/oballm/mieru/v3 v3.0.0-20261126111946-23207b3bffeb h1:0YFNED6ZMA2Q38MMpU+tH/I/ETTAZBICbgqJKOsLzSc=
+github.com/oballm/mieru/v3 v3.0.0-20261126111946-23207b3bffeb/go.mod h1:zJBUCsi5rxyvHM8fjFf+GLaEl4OEjjBXr1s5F6Qd3hM=
+github.com/oballm/sing-snell v0.0.0-20261126112617-adafbe9b6b33 h1:gGgS3FEoXSkkJrc9kTxzTU0PIVN7am+QWLo1XhsZJL4=
+github.com/oballm/sing-snell v0.0.0-20261126112617-adafbe9b6b33/go.mod h1:9O6b0qRI/QjuycrYQVnftrRjztzHUV2qYuX6rmpDtCY=
 github.com/openai/openai-go/v3 v3.26.0 h1:bRt6H/ozMNt/dDkN4gobnLqaEGrRGBzmbVs0xxJEnQE=
 github.com/openai/openai-go/v3 v3.26.0/go.mod h1:cdufnVK14cWcT9qA1rRtrXx4FTRsgbDPW7Ia7SS5cZo=
 github.com/oschwald/maxminddb-golang v1.13.1 h1:G3wwjdN9JmIK2o/ermkHM+98oX5fS+k5MbwsmL4MRQE=
