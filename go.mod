@@ -13,7 +13,7 @@ require (
 	github.com/cretz/bine v0.2.0
 	github.com/database64128/tfo-go/v2 v2.3.2
 	github.com/dblohm7/wingoes v0.0.0-20240119213807-a09d6be7affa
-	github.com/enfein/mieru/v3 v3.39.0
+	github.com/enfein/mieru/v3 v3.40.0
 	github.com/go-chi/chi/v5 v5.2.5
 	github.com/go-chi/render v1.0.3
 	github.com/godbus/dbus/v5 v5.2.2
@@ -46,7 +46,7 @@ require (
 	github.com/sagernet/netlink v0.0.0-20260814022025-64455d367bbf
 	github.com/sagernet/nftables v0.3.0-mod.4
 	github.com/sagernet/quic-go v0.61.0-sing-box-mod.12
-	github.com/sagernet/sing v0.9.7-0.20261023115459-5dc452e537bf
+	github.com/sagernet/sing v0.9.7-0.20261124055526-8badbba80825
 	github.com/sagernet/sing-cloudflared v0.1.4-0.20261021152903-2d40d788fcf6
 	github.com/sagernet/sing-mux v0.3.10-0.20260929204512-caf09fe32475
 	github.com/sagernet/sing-openconnect v0.1.1-0.20260929151225-cbd68c45de58
@@ -200,6 +200,6 @@ require (
 	zombiezen.com/go/capnproto2 v2.18.2+incompatible // indirect
 )
 
-replace github.com/enfein/mieru/v3 => github.com/oballm/mieru/v3 v3.0.0-20261113010409-83f62db6c429
+replace github.com/enfein/mieru/v3 => ../mieru
 
-replace github.com/sagernet/sing-snell => github.com/oballm/sing-snell v0.0.0-20261112154352-965a91b90ec8
+replace github.com/sagernet/sing-snell => ../sing-snell
